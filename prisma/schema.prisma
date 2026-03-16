@@ -77,6 +77,7 @@ model Banner {
   id         String   @id @default(uuid())
   imageUrl   String
   altText    String?
+  linkUrl    String?  // Redirect link when clicked
   type       String   @default("DESKTOP") // DESKTOP or MOBILE
   order      Int      @default(0)
   isActive   Boolean  @default(true)
