@@ -68,9 +68,23 @@ model Collection {
   name        String    @unique
   description String?
   imageUrl    String?
+  order       Int       @default(0)
   createdAt   DateTime  @default(now())
   products    Product[]
 }
+
+model Banner {
+  id         String   @id @default(uuid())
+  imageUrl   String
+  altText    String?
+  type       String   @default("DESKTOP") // DESKTOP or MOBILE
+  order      Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+
 
 model Order {
   id          String      @id @default(uuid())
@@ -81,7 +95,13 @@ model Order {
   updatedAt   DateTime    @updatedAt
   customer    Customer?   @relation(fields: [customerId], references: [id])
   items       OrderItem[]
+
+  // Razorpay fields
+  razorpayOrderId   String? @unique
+  razorpayPaymentId String? @unique
+  razorpaySignature String?
 }
+
 
 model OrderItem {
   id        String  @id @default(uuid())
@@ -126,3 +146,14 @@ model Sale {
   source    String   @default("Website") // "Website" or "Store"
   createdAt DateTime @default(now())
 }
+
+model ContactMessage {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  subject   String?
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+

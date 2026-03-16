@@ -13,6 +13,16 @@ export const getCollections = async (req, res) => {
 export const createCollection = async (req, res) => {
   try {
     const { name, description, imageUrl } = req.body;
+    
+    // Check for existing collection with same name
+    const existing = await prisma.collection.findUnique({
+      where: { name }
+    });
+
+    if (existing) {
+      return res.status(400).json({ message: 'Collection already exists with this name' });
+    }
+
     const collection = await prisma.collection.create({
       data: { name, description, imageUrl }
     });
@@ -54,6 +64,22 @@ export const deleteCollection = async (req, res) => {
       where: { id: req.params.id }
     });
     res.json({ message: 'Collection deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+export const reorderCollections = async (req, res) => {
+  const { items } = req.body; // Array of { id, order }
+  try {
+    await Promise.all(
+      items.map((item) =>
+        prisma.collection.update({
+          where: { id: item.id },
+          data: { order: item.order },
+        })
+      )
+    );
+    res.json({ message: 'Collections reordered' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

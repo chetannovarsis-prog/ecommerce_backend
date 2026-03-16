@@ -8,6 +8,12 @@ import uploadRoutes from './routes/uploadRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import saleRoutes from './routes/saleRoutes.js';
+import bannerRoutes from './routes/bannerRoutes.js';
+import contactRoutes from './routes/contactRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
+import orderRoutes from './routes/orderRoutes.js';
+
+
 
 dotenv.config();
 
@@ -24,6 +30,12 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/sales', saleRoutes);
+app.use('/api/banners', bannerRoutes);
+app.use('/api/contact', contactRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/orders', orderRoutes);
+
+
 
 app.get('/', (req, res) => {
   res.send('Ecommerce API is running...');
