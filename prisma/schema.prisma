@@ -1,0 +1,128 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id           String      @id @default(uuid())
+  name         String
+  subtitle     String?
+  handle       String?     @unique
+  description  String?
+  price        Float
+  isDiscountable Boolean   @default(false)
+  discountPrice Float?    // The amount to be reduced from the original price
+  images       String[]
+  thumbnailUrl String?
+  hoverThumbnailUrl String?
+  stock        Int         @default(0)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  categories   Category[]
+  collections  Collection[]
+  orderItems   OrderItem[]
+  variants     ProductVariant[]
+  reviews      Review[]
+  sales        Sale[]
+}
+
+model ProductVariant {
+  id        String   @id @default(uuid())
+  title     String
+  price     Float?   // Optional: if different from base price
+  stock     Int      @default(0)
+  images    String[] // Images specific to this variant (e.g., color)
+  thumbnailUrl String?
+  hoverThumbnailUrl String?
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  rating    Int
+  comment   String?
+  userName  String
+  userEmail String
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  products    Product[]
+}
+
+model Collection {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  imageUrl    String?
+  createdAt   DateTime  @default(now())
+  products    Product[]
+}
+
+model Order {
+  id          String      @id @default(uuid())
+  totalAmount Float
+  status      String      @default("PENDING")
+  customerId  String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  customer    Customer?   @relation(fields: [customerId], references: [id])
+  items       OrderItem[]
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  quantity  Int
+  price     Float
+  productId String
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+}
+
+model Customer {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  name      String?
+  password  String?   // For local auth
+  provider  String    @default("local") // local or google
+  otp       String?
+  otpExpires DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  orders    Order[]
+}
+
+model Admin {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password      String?  // Optional if we use hardcoded or env password for now
+  is2FAEnabled  Boolean  @default(false)
+  otp           String?
+  otpExpires    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Sale {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Float
+  source    String   @default("Website") // "Website" or "Store"
+  createdAt DateTime @default(now())
+}
