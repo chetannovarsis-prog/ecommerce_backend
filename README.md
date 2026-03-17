@@ -54,9 +54,13 @@ The high-performance engine powering the storefront and admin dashboard. Built w
 
 ### Products & Management
 - `GET /api/products` - List all products
+- `GET /api/products/best-sellers` - Get best selling products
+- `GET /api/products/new-arrivals` - Get most recent products
 - `GET /api/products/:id` - Get product details
 - `POST /api/products` - Create product (Admin)
 - `PUT /api/products/:id` - Update product (Admin)
+- `PATCH /api/products/:id` - Partial update product (Admin)
+- `DELETE /api/products/:id` - Delete product (Admin)
 
 ### Categories & Collections
 - `GET /api/categories` - Fetch categories

@@ -6,11 +6,15 @@ import {
   updateProduct,
   patchProduct,
   deleteProduct,
+  getBestSellers,
+  getNewArrivals,
 } from '../controllers/productController.js';
 
 const router = express.Router();
 
 router.get('/', getAllProducts);
+router.get('/best-sellers', getBestSellers);
+router.get('/new-arrivals', getNewArrivals);
 router.get('/:id', getProductById);
 router.post('/', createProduct);
 router.put('/:id', updateProduct);

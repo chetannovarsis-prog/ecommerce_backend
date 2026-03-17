@@ -208,10 +208,62 @@ export const patchProduct = async (req, res) => {
   }
 };
 
+export const getBestSellers = async (req, res) => {
+  try {
+    // Fetch products from the "Best sellers" collection
+    const bestSellersCollection = await prisma.collection.findFirst({
+      where: {
+        name: {
+          contains: 'Best sellers',
+          mode: 'insensitive'
+        }
+      },
+      include: {
+        products: {
+          take: 8,
+          include: {
+            categories: true,
+            collections: true,
+            variants: true
+          }
+        }
+      }
+    });
+
+    if (!bestSellersCollection) {
+      return res.json([]);
+    }
+
+    res.json(bestSellersCollection.products);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getNewArrivals = async (req, res) => {
+  try {
+    const products = await prisma.product.findMany({
+      orderBy: {
+        createdAt: 'desc'
+      },
+      take: 8,
+      include: {
+        categories: true,
+        collections: true,
+        variants: true
+      }
+    });
+    res.json(products);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const deleteProduct = async (req, res) => {
   try {
+    const { id } = req.params;
     await prisma.product.delete({
-      where: { id: req.params.id },
+      where: { id: id },
     });
     res.json({ message: 'Product deleted successfully' });
   } catch (error) {

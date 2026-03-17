@@ -8,8 +8,8 @@ export const createReview = async (req, res) => {
       data: {
         rating: parseInt(rating),
         comment,
-        userName,
-        userEmail,
+        userName: userName || 'Anonymous',
+        userEmail: userEmail || 'anonymous@example.com',
         productId
       }
     });

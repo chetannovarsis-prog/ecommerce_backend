@@ -182,3 +182,21 @@ export const googleLogin = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+export const getAllCustomers = async (req, res) => {
+  try {
+    console.log('Fetching all customers...');
+    const customers = await prisma.customer.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        orders: {
+          select: { id: true, totalAmount: true }
+        }
+      }
+    });
+    console.log(`Found ${customers.length} customers`);
+    res.json(customers);
+  } catch (error) {
+    console.error('Error in getAllCustomers:', error);
+    res.status(500).json({ error: error.message });
+  }
+};

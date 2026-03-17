@@ -8,24 +8,37 @@ const razorpay = new Razorpay({
 });
 
 export const createRazorpayOrder = async (req, res) => {
-  const { amount, currency = 'INR', receipt, items, customerId } = req.body;
+  const { amount, currency = 'INR', receipt, items, customerId, paymentMethod, shippingAddress } = req.body;
+  
+  console.log('--- CREATING ORDER ---');
+  console.log('Body:', { amount, currency, receipt, customerId, paymentMethod });
+  console.log('Items Count:', items?.length);
 
   try {
-    const options = {
-      amount: Math.round(amount * 100), // amount in the smallest currency unit
-      currency,
-      receipt,
-    };
+    let razorpayOrder = null;
+    
+    // Only create Razorpay order if it's not COD
+    if (paymentMethod !== 'cod') {
+      const options = {
+        amount: Math.round(amount * 100), // amount in the smallest currency unit
+        currency,
+        receipt,
+      };
+      console.log('Creating Razorpay order with options:', options);
+      razorpayOrder = await razorpay.orders.create(options);
+      console.log('Razorpay Order Created:', razorpayOrder.id);
+    }
 
-    const razorpayOrder = await razorpay.orders.create(options);
-
-    // Also create a pending order in our database
+    // Create a pending order in our database
+    console.log('Creating database order...');
     const order = await prisma.order.create({
       data: {
         totalAmount: amount,
-        status: 'PENDING',
-        customerId: customerId,
-        razorpayOrderId: razorpayOrder.id,
+        status: paymentMethod === 'cod' ? 'COD_PENDING' : 'PENDING',
+        customerId: customerId || null,
+        razorpayOrderId: razorpayOrder ? razorpayOrder.id : null,
+        paymentMethod: paymentMethod,
+        shippingAddress: shippingAddress,
         items: {
           create: items.map(item => ({
             productId: item.productId,
@@ -35,14 +48,17 @@ export const createRazorpayOrder = async (req, res) => {
         }
       }
     });
+    console.log('Database Order Created:', order.id);
 
     res.json({
-      ...razorpayOrder,
-      orderId: order.id // Our internal order ID
+      ...(razorpayOrder || {}),
+      orderId: order.id,
+      paymentMethod
     });
   } catch (error) {
-    console.error('Error creating Razorpay order:', error);
-    res.status(500).json({ message: error.message });
+    console.error('--- ORDER CREATION ERROR ---');
+    console.error(error);
+    res.status(500).json({ message: error.message, stack: error.stack });
   }
 };
 

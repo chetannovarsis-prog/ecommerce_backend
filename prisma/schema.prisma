@@ -101,6 +101,9 @@ model Order {
   razorpayOrderId   String? @unique
   razorpayPaymentId String? @unique
   razorpaySignature String?
+
+  paymentMethod     String? // "razorpay" or "cod"
+  shippingAddress   Json?   // Store full address as JSON for simplicity
 }
 
 
