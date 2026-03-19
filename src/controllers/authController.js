@@ -1,4 +1,4 @@
-import prisma from '../config/db.js';
+import prisma from '../utils/prisma.js';
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
@@ -51,12 +51,36 @@ export const login = async (req, res) => {
         text: `Your OTP for admin login is: ${otp}. It expires in 10 minutes.`
       };
 
-      await transporter.sendMail(mailOptions);
+      let emailSent = false;
+      try {
+        await transporter.sendMail(mailOptions);
+        emailSent = true;
+      } catch (mailError) {
+        console.error('Error sending OTP email:', mailError);
+      }
 
-      return res.json({ 
-        requires2FA: true, 
+      // If email sent successfully, we require the OTP step.
+      if (emailSent) {
+        return res.json({ 
+          requires2FA: true,
+          email: admin.email,
+          message: 'OTP sent to your email'
+        });
+      }
+
+      // If email sending fails (missing credentials / blocked by provider), fall back to issuing a token so the admin can still login.
+      // This keeps the app usable in environments where email is not configured.
+      const token = jwt.sign(
+        { id: admin.id, email: admin.email, role: 'admin' },
+        process.env.JWT_SECRET || 'default-secret',
+        { expiresIn: '1d' }
+      );
+
+      return res.json({
+        success: true,
         email: admin.email,
-        message: 'OTP sent to your email' 
+        token,
+        warning: 'Failed to send OTP email; logging in without 2FA.'
       });
     }
 

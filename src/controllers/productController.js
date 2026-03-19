@@ -1,4 +1,4 @@
-import prisma from '../config/db.js';
+import prisma from '../utils/prisma.js';
 
 export const getAllProducts = async (req, res) => {
   try {
