@@ -10,7 +10,15 @@ export const getCollections = async (req, res) => {
       },
       orderBy: { order: 'asc' }
     });
-    res.json(collections);
+
+    // Provide a compatible field name for older clients (e.g., `img`) while keeping `imageUrl`.
+    const normalized = collections.map((c) => ({
+      ...c,
+      img: c.imageUrl,
+      products: c.products || []
+    }));
+
+    res.json(normalized);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
