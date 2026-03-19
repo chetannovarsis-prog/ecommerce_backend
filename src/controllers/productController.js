@@ -6,7 +6,8 @@ export const getAllProducts = async (req, res) => {
       include: {
         categories: true,
         collections: true,
-        variants: true
+        variants: true,
+        reviews: true
       }
     });
     res.json(products);
@@ -26,7 +27,8 @@ export const getProductById = async (req, res) => {
       include: {
         categories: true,
         collections: true,
-        variants: true
+        variants: true,
+        reviews: true
       }
     });
     if (!product) return res.status(404).json({ message: 'Product not found' });
@@ -44,15 +46,27 @@ export const createProduct = async (req, res) => {
       discountPrice, thumbnailUrl, hoverThumbnailUrl, variants
     } = req.body;
 
+    // Ensure unique name
+    if (name) {
+      const existingProduct = await prisma.product.findFirst({
+        where: { name: { equals: name, mode: 'insensitive' } }
+      });
+      if (existingProduct) {
+        return res.status(400).json({ message: 'A product with this name already exists' });
+      }
+    }
+
     const sanitizedPrice = isNaN(parseFloat(price)) ? 0 : parseFloat(price);
     const sanitizedStock = isNaN(parseInt(stock)) ? 0 : parseInt(stock);
     const sanitizedDiscountPrice = isDiscountable ? (isNaN(parseFloat(discountPrice)) ? 0 : parseFloat(discountPrice)) : null;
+
+    const productHandle = handle || name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
     const product = await prisma.product.create({
       data: {
         name,
         subtitle,
-        handle: handle || null,
+        handle: productHandle,
         description,
         price: sanitizedPrice,
         images,
@@ -93,14 +107,26 @@ export const updateProduct = async (req, res) => {
       discountPrice, thumbnailUrl, hoverThumbnailUrl, variants
     } = req.body;
 
+    if (name) {
+      const existingProduct = await prisma.product.findFirst({
+        where: { 
+          name: { equals: name, mode: 'insensitive' },
+          id: { not: req.params.id }
+        }
+      });
+      if (existingProduct) {
+        return res.status(400).json({ message: 'A product with this name already exists' });
+      }
+    }
+
     const sanitizedPrice = isNaN(parseFloat(price)) ? undefined : parseFloat(price);
     const sanitizedStock = isNaN(parseInt(stock)) ? undefined : parseInt(stock);
     const sanitizedDiscountPrice = isDiscountable ? (isNaN(parseFloat(discountPrice)) ? 0 : parseFloat(discountPrice)) : null;
 
-    // Simple variant sync: delete old, create new (for MVP/Dev simplicity)
-    // In production, we'd use upsert or IDs to preserve specific variants
-    if (variants) {
-      await prisma.productVariant.deleteMany({ where: { productId: req.params.id } });
+    // Resolve handle
+    let productHandle = handle;
+    if (!productHandle && name) {
+      productHandle = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     }
 
     const product = await prisma.product.update({
@@ -108,22 +134,23 @@ export const updateProduct = async (req, res) => {
       data: {
         name,
         subtitle,
-        handle: handle || null,
+        handle: productHandle,
         description,
         price: sanitizedPrice,
         images,
         thumbnailUrl,
         hoverThumbnailUrl,
+        stock: sanitizedStock,
+        isDiscountable: !!isDiscountable,
+        discountPrice: sanitizedDiscountPrice,
         categories: (categoryIds || (categoryId ? [categoryId] : null)) ? {
           set: (categoryIds || [categoryId]).filter(id => id && id !== 'none' && id !== '').map(id => ({ id }))
         } : undefined,
         collections: (collectionIds || (collectionId ? [collectionId] : null)) ? {
           set: (collectionIds || [collectionId]).filter(id => id && id !== 'none' && id !== '').map(id => ({ id }))
         } : undefined,
-        stock: sanitizedStock,
-        isDiscountable: !!isDiscountable,
-        discountPrice: sanitizedDiscountPrice,
         variants: variants ? {
+          deleteMany: {},
           create: variants.map(v => ({
             title: v.title,
             price: (v.price === null || v.price === undefined || v.price === '') ? null : parseFloat(v.price),
@@ -132,7 +159,7 @@ export const updateProduct = async (req, res) => {
           }))
         } : undefined
       },
-      include: { variants: true }
+      include: { variants: true, reviews: true }
     });
     res.json(product);
   } catch (error) {
@@ -156,8 +183,8 @@ export const patchProduct = async (req, res) => {
     // Convert numeric fields if present, handling 0 correctly
     if (data.price !== undefined) data.price = parseFloat(data.price);
     if (data.stock !== undefined) data.stock = parseInt(data.stock);
-    if (data.discountPrice !== undefined) {
-      data.discountPrice = (data.discountPrice === null || data.discountPrice === '') ? null : parseFloat(data.discountPrice);
+    if (data.name && !data.handle) {
+      data.handle = data.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     }
 
     // Handle Variants Sync
@@ -198,7 +225,8 @@ export const patchProduct = async (req, res) => {
       include: {
         categories: true,
         collections: true,
-        variants: true
+        variants: true,
+        reviews: true
       }
     });
     res.json(product);

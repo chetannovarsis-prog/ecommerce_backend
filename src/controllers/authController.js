@@ -1,7 +1,10 @@
 import prisma from '../config/db.js';
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
+import { OAuth2Client } from 'google-auth-library';
 
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 // Setup nodemailer transporter
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -57,11 +60,17 @@ export const login = async (req, res) => {
       });
     }
 
-    // If 2FA not enabled, just login
+    // Generate JWT
+    const token = jwt.sign(
+      { id: admin.id, email: admin.email, role: 'admin' },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
     res.json({ 
       success: true, 
       email: admin.email,
-      token: 'mock-token-' + admin.id // In real app, use JWT
+      token
     });
 
   } catch (error) {
@@ -86,10 +95,17 @@ export const verifyOtp = async (req, res) => {
       data: { otp: null, otpExpires: null }
     });
 
+    // Generate JWT
+    const token = jwt.sign(
+      { id: admin.id, email: admin.email, role: 'admin' },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
     res.json({ 
       success: true, 
       email: admin.email,
-      token: 'mock-token-' + admin.id 
+      token
     });
 
   } catch (error) {
@@ -134,7 +150,14 @@ export const customerLogin = async (req, res) => {
     if (!customer || customer.password !== password) {
        return res.status(401).json({ message: 'Invalid email or password' });
     }
-    res.json({ success: true, customer: { id: customer.id, name: customer.name, email: customer.email }, token: 'cust-token-' + customer.id });
+    // Generate JWT
+    const token = jwt.sign(
+      { id: customer.id, email: customer.email, role: 'customer' },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({ success: true, customer: { id: customer.id, name: customer.name, email: customer.email }, token });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -169,17 +192,42 @@ export const customerForgotPassword = async (req, res) => {
 };
 
 export const googleLogin = async (req, res) => {
-  const { email, name, googleId } = req.body;
+  const { credential } = req.body;
   try {
+    const ticket = await googleClient.verifyIdToken({
+        idToken: credential,
+        audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    const { email, name, sub: googleId, picture } = payload;
+
     let customer = await prisma.customer.findUnique({ where: { email } });
+    
     if (!customer) {
       customer = await prisma.customer.create({
-        data: { email, name, provider: 'google' }
+        data: { 
+          email, 
+          name, 
+          provider: 'google'
+        }
       });
     }
-    res.json({ success: true, customer: { id: customer.id, name: customer.name, email: customer.email }, token: 'google-token-' + customer.id });
+
+    // Generate JWT
+    const token = jwt.sign(
+      { id: customer.id, email: customer.email, role: 'customer' },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({ 
+      success: true, 
+      customer: { id: customer.id, name: customer.name, email: customer.email },
+      token
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Google Login Error:', error);
+    res.status(500).json({ error: 'Google login failed' });
   }
 };
 export const getAllCustomers = async (req, res) => {

@@ -36,6 +36,53 @@ export const getOrders = async (req, res) => {
   }
 };
 
+export const getOrderById = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: {
+        customer: true,
+        items: {
+          include: {
+            product: true
+          }
+        }
+      }
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    res.json(order);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getCustomerOrders = async (req, res) => {
+  const { customerId } = req.params;
+  try {
+    const orders = await prisma.order.findMany({
+      where: { customerId },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: { name: true, thumbnailUrl: true }
+            }
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(orders);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const updateOrderStatus = async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
