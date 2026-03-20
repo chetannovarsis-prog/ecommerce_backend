@@ -217,21 +217,33 @@ export const customerForgotPassword = async (req, res) => {
 
 export const googleLogin = async (req, res) => {
   const { credential } = req.body;
+
+  if (!credential) {
+    return res.status(400).json({ error: 'Missing Google credential' });
+  }
+  if (!process.env.GOOGLE_CLIENT_ID) {
+    return res.status(500).json({ error: 'Missing GOOGLE_CLIENT_ID env var on server' });
+  }
+
   try {
     const ticket = await googleClient.verifyIdToken({
-        idToken: credential,
-        audience: process.env.GOOGLE_CLIENT_ID,
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
     });
     const payload = ticket.getPayload();
-    const { email, name, sub: googleId, picture } = payload;
+    const { email, name } = payload;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Google profile has no email' });
+    }
 
     let customer = await prisma.customer.findUnique({ where: { email } });
-    
+
     if (!customer) {
       customer = await prisma.customer.create({
-        data: { 
-          email, 
-          name, 
+        data: {
+          email,
+          name: name || 'Google User',
           provider: 'google'
         }
       });
@@ -240,18 +252,19 @@ export const googleLogin = async (req, res) => {
     // Generate JWT
     const token = jwt.sign(
       { id: customer.id, email: customer.email, role: 'customer' },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || 'default-secret',
       { expiresIn: '7d' }
     );
 
-    res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       customer: { id: customer.id, name: customer.name, email: customer.email },
       token
     });
   } catch (error) {
     console.error('Google Login Error:', error);
-    res.status(500).json({ error: 'Google login failed' });
+    const message = error?.message || 'Google login failed';
+    return res.status(500).json({ error: `Google login failed: ${message}` });
   }
 };
 export const getAllCustomers = async (req, res) => {

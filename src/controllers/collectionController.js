@@ -23,18 +23,21 @@ export const getCollections = async (req, res) => {
       orderBy: { order: 'asc' }
     });
 
-    const normalized = collections.map((c) => ({
-      id: c.id,
-      name: c.name,
-      description: c.description,
-      imageUrl: c.imageUrl,
-      img: c.imageUrl,
-      order: c.order ?? null,
-      createdAt: c.createdAt,
-      updatedAt: c.updatedAt,
-      productsCount: c._count?.products ?? 0,
-      products: [],
-    }));
+    const normalized = collections
+      .slice()
+      .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER))
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        imageUrl: c.imageUrl,
+        img: c.imageUrl,
+        order: c.order ?? 0,
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+        productsCount: c._count?.products ?? 0,
+        products: [],
+      }));
 
     if (!paginationEnabled) {
       return res.json(normalized);
