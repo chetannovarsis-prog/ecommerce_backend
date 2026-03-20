@@ -7,13 +7,17 @@ export const getBanners = async (req, res) => {
   const { all } = req.query;
 
   try {
+    if (!prisma || !prisma.banner) {
+      throw new Error('Prisma client is not initialized (banner).');
+    }
+
     const paginationEnabled = req.query.page || req.query.limit;
 
     const banners = await prisma.banner.findMany({
       where: all === 'true' ? {} : { isActive: true },
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' }
+      orderBy: { order: 'asc' }
     });
 
     if (!paginationEnabled) {
@@ -43,6 +47,11 @@ export const getBanners = async (req, res) => {
         return res.status(500).json({ message: err.message });
       }
     }
+
+    if (error.message.includes('Cannot read properties of undefined')) {
+      return res.status(500).json({ message: 'Prisma is not initialized in bannerController; check import and utils/prisma.js' });
+    }
+
     res.status(500).json({ message: error.message });
   }
 };

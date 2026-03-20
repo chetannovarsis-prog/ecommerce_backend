@@ -8,6 +8,10 @@ export const getCollections = async (req, res) => {
   try {
     const paginationEnabled = req.query.page || req.query.limit;
 
+    if (!prisma || !prisma.collection) {
+      throw new Error('Prisma client is not initialized (collection).');
+    }
+
     const collections = await prisma.collection.findMany({
       include: {
         _count: {
@@ -16,7 +20,7 @@ export const getCollections = async (req, res) => {
       },
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' }
+      orderBy: { order: 'asc' }
     });
 
     const normalized = collections.map((c) => ({
@@ -48,14 +52,14 @@ export const getCollections = async (req, res) => {
       }
     });
   } catch (error) {
-    // fallback for old schemas where createdAt/order field is missing
+    // fallback for old schema or missing order field.
     if (/Unknown argument `order`/.test(error.message)) {
       try {
         const collections = await prisma.collection.findMany({
           include: { _count: { select: { products: true } } },
           skip,
           take: limit,
-          orderBy: { name: 'asc' }
+          orderBy: { createdAt: 'desc' }
         });
 
         const normalized = collections.map((c) => ({
