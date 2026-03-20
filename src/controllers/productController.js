@@ -1,16 +1,36 @@
 import prisma from '../utils/prisma.js';
 
 export const getAllProducts = async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(100, Math.max(5, parseInt(req.query.limit, 10) || 20));
+  const skip = (page - 1) * limit;
+  const { collectionId, categoryId } = req.query;
+
   try {
-    const products = await prisma.product.findMany({
-      include: {
-        categories: true,
-        collections: true,
-        variants: true,
-        reviews: true
-      }
-    });
-    res.json(products);
+    const where = {};
+    if (collectionId) {
+      where.collections = { some: { id: collectionId } };
+    }
+    if (categoryId) {
+      where.categories = { some: { id: categoryId } };
+    }
+
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          categories: true,
+          collections: true,
+          variants: true
+        }
+      }),
+      prisma.product.count({ where })
+    ]);
+
+    res.json({ data: products, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -1,25 +1,81 @@
 import prisma from '../utils/prisma.js';
 
 export const getCollections = async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+  const skip = (page - 1) * limit;
+
   try {
+    const paginationEnabled = req.query.page || req.query.limit;
+
     const collections = await prisma.collection.findMany({
       include: {
-        products: {
-          select: { id: true }
+        _count: {
+          select: { products: true }
         }
       },
-      orderBy: { order: 'asc' }
+      skip,
+      take: limit,
+      orderBy: { createdAt: 'desc' }
     });
 
-    // Provide a compatible field name for older clients (e.g., `img`) while keeping `imageUrl`.
     const normalized = collections.map((c) => ({
-      ...c,
+      id: c.id,
+      name: c.name,
+      description: c.description,
+      imageUrl: c.imageUrl,
       img: c.imageUrl,
-      products: c.products || []
+      order: c.order ?? null,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+      productsCount: c._count?.products ?? 0,
+      products: [],
     }));
 
-    res.json(normalized);
+    if (!paginationEnabled) {
+      return res.json(normalized);
+    }
+
+    const total = await prisma.collection.count();
+
+    res.json({
+      data: normalized,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
+    // fallback for old schemas where createdAt/order field is missing
+    if (/Unknown argument `order`/.test(error.message)) {
+      try {
+        const collections = await prisma.collection.findMany({
+          include: { _count: { select: { products: true } } },
+          skip,
+          take: limit,
+          orderBy: { name: 'asc' }
+        });
+
+        const normalized = collections.map((c) => ({
+          ...c,
+          img: c.imageUrl,
+          productsCount: c._count?.products ?? 0,
+          products: []
+        }));
+
+        const total = await prisma.collection.count();
+
+        return res.json({
+          data: normalized,
+          meta: { page, limit, total, totalPages: Math.ceil(total / limit) }
+        });
+      } catch (err) {
+        return res.status(500).json({ error: err.message });
+      }
+    }
+
     res.status(500).json({ error: error.message });
   }
 };
@@ -70,7 +126,16 @@ export const getCollectionById = async (req, res) => {
   try {
     const collection = await prisma.collection.findUnique({
       where: { id: req.params.id },
-      include: { products: true }
+      include: {
+        products: {
+          select: {
+            id: true,
+            name: true,
+            subtitle: true,
+            thumbnailUrl: true
+          }
+        }
+      }
     });
     if (!collection) return res.status(404).json({ message: 'Collection not found' });
     res.json(collection);

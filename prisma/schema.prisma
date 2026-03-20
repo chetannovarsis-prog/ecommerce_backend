@@ -28,6 +28,9 @@ model Product {
   variants     ProductVariant[]
   reviews      Review[]
   sales        Sale[]
+
+  @@index([price])
+  @@index([createdAt])
 }
 
 model ProductVariant {
@@ -71,6 +74,10 @@ model Collection {
   order       Int       @default(0)
   createdAt   DateTime  @default(now())
   products    Product[]
+
+  @@index([name])
+  @@index([createdAt])
+  @@index([order])
 }
 
 model Banner {
@@ -83,6 +90,9 @@ model Banner {
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([createdAt])
 }
 
 
