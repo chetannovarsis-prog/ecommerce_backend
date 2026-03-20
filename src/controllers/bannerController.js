@@ -8,6 +8,7 @@ export const getBanners = async (req, res) => {
 
   try {
     const paginationEnabled = req.query.page || req.query.limit;
+    console.info('getBanners request', { all, page, limit, skip, paginationEnabled, hasBanner: !!prisma?.banner });
 
     let banners;
     try {
@@ -18,8 +19,14 @@ export const getBanners = async (req, res) => {
         orderBy: { order: 'asc' }
       });
     } catch (innerErr) {
-      // Fallback when 'order' is not present or not accepted in schema
-      if (/Unknown argument `order`/.test(innerErr.message)) {
+      if (innerErr.message?.includes('Cannot read properties of undefined') || innerErr.message?.includes('prisma.banner')) {
+        // Model property missing, fallback to raw SQL.
+        const whereClause = all === 'true' ? '' : ' WHERE "isActive" = TRUE';
+        const orderClause = ' ORDER BY "order" ASC';
+        const limitOffsetClause = ` LIMIT ${limit} OFFSET ${skip}`;
+        const raw = `SELECT * FROM "Banner"${whereClause}${orderClause}${limitOffsetClause}`;
+        banners = await prisma.$queryRawUnsafe(raw);
+      } else if (/Unknown argument `order`/.test(innerErr.message)) {
         banners = await prisma.banner.findMany({
           where: all === 'true' ? {} : { isActive: true },
           skip,
