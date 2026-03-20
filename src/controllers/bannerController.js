@@ -7,51 +7,38 @@ export const getBanners = async (req, res) => {
   const { all } = req.query;
 
   try {
-    if (!prisma || !prisma.banner) {
-      throw new Error('Prisma client is not initialized (banner).');
-    }
-
     const paginationEnabled = req.query.page || req.query.limit;
 
-    const banners = await prisma.banner.findMany({
-      where: all === 'true' ? {} : { isActive: true },
-      skip,
-      take: limit,
-      orderBy: { order: 'asc' }
-    });
+    let banners;
+    try {
+      banners = await prisma.banner.findMany({
+        where: all === 'true' ? {} : { isActive: true },
+        skip,
+        take: limit,
+        orderBy: { order: 'asc' }
+      });
+    } catch (innerErr) {
+      // Fallback when 'order' is not present or not accepted in schema
+      if (/Unknown argument `order`/.test(innerErr.message)) {
+        banners = await prisma.banner.findMany({
+          where: all === 'true' ? {} : { isActive: true },
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' }
+        });
+      } else {
+        throw innerErr;
+      }
+    }
 
     if (!paginationEnabled) {
       return res.json(banners);
     }
 
     const total = await prisma.banner.count({ where: all === 'true' ? {} : { isActive: true } });
-
     res.json({ data: banners, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } });
   } catch (error) {
-    if (/Unknown argument `order`/.test(error.message)) {
-      try {
-        const banners = await prisma.banner.findMany({
-          where: all === 'true' ? {} : { isActive: true },
-          skip,
-          take: limit,
-          orderBy: { createdAt: 'desc' }
-        });
-
-        if (!paginationEnabled) {
-          return res.json(banners);
-        }
-
-        const total = await prisma.banner.count({ where: all === 'true' ? {} : { isActive: true } });
-        return res.json({ data: banners, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } });
-      } catch (err) {
-        return res.status(500).json({ message: err.message });
-      }
-    }
-
-    if (error.message.includes('Cannot read properties of undefined')) {
-      return res.status(500).json({ message: 'Prisma is not initialized in bannerController; check import and utils/prisma.js' });
-    }
-
+    console.error('Banner fetch failed:', error);
     res.status(500).json({ message: error.message });
   }
 };
