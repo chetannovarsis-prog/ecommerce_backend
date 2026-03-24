@@ -15,13 +15,23 @@ const transporter = nodemailer.createTransport({
 });
 
 export const login = async (req, res) => {
-  const { email, password } = req.body;
+  let { email, password } = req.body;
+  
+  console.log('--- LOGIN DEBUG ---');
+  console.log('Email received:', email);
+  console.log('Password exists:', !!password);
+  if (password) {
+    password = password.trim();
+    console.log('Password length after trim:', password.length);
+  }
 
-  // For this project, we'll keep the admin123 password logic but link it to the email
-  // Ideally, we'd check against hashed password in DB
-  if (password !== 'admin123') {
+  // Allow both admin123 and Admin123 for easier entry
+  if (password?.toLowerCase() !== 'admin123') {
+    console.log('Access Denied: Password mismatch.');
     return res.status(401).json({ message: 'Invalid credentials' });
   }
+  
+  console.log('Access Granted! Proceeding to DB lookup...');
 
   try {
     let admin = await prisma.admin.findUnique({ where: { email } });
