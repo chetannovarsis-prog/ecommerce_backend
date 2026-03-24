@@ -171,3 +171,9 @@ model ContactMessage {
   createdAt DateTime @default(now())
 }
 
+
+model GlobalSetting {
+  id         String   @id @default("default")
+  codEnabled Boolean  @default(false)
+  updatedAt  DateTime @updatedAt
+}

@@ -12,6 +12,7 @@ import bannerRoutes from './routes/bannerRoutes.js';
 import contactRoutes from './routes/contactRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
+import settingsRoutes from './routes/settingsRoutes.js';
 
 
 
@@ -34,6 +35,7 @@ app.use('/api/banners', bannerRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/settings', settingsRoutes);
 
 
 
