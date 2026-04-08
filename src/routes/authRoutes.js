@@ -7,7 +7,9 @@ import {
   customerLogin, 
   customerForgotPassword, 
   googleLogin,
-  getAllCustomers
+  getAllCustomers,
+  getCustomerProfile,
+  updateCustomerAddresses
 } from '../controllers/authController.js';
 
 const router = express.Router();
@@ -21,6 +23,8 @@ router.post('/customer/signup', customerSignup);
 router.post('/customer/login', customerLogin);
 router.post('/customer/forgot-password', customerForgotPassword);
 router.post('/customer/google-login', googleLogin);
+router.get('/customer/:customerId/profile', getCustomerProfile);
+router.put('/customer/:customerId/addresses', updateCustomerAddresses);
 router.get('/customers', getAllCustomers);
 
 export default router;

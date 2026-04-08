@@ -73,6 +73,44 @@ The high-performance engine powering the storefront and admin dashboard. Built w
 ### Uploads
 - `POST /api/upload` - Handle image uploads to Supabase
 
+### Shipping
+- `POST /api/shipping/create` - Create a Shiprocket shipment for an existing order
+- `GET /api/shipping/track?awb=<awb>` - Fetch live shipment tracking details
+- `GET /api/shipping/track?orderId=<orderId>` - Fetch tracking details using a stored shipment
+- `GET /api/shipping/order/:orderId` - Fetch stored shipment data for an order
+
+## Shipping Setup
+
+Add these environment variables before using the shipping APIs:
+
+```env
+SHIPROCKET_EMAIL="your-shiprocket-email"
+SHIPROCKET_PASSWORD="your-shiprocket-password"
+SHIPROCKET_BASE_URL="https://apiv2.shiprocket.in"
+SHIPROCKET_PICKUP_LOCATION="Primary"
+SHIPROCKET_PICKUP_POSTCODE="110001"
+```
+
+Optional:
+
+```env
+SHIPROCKET_TOKEN="existing-jwt-token"
+```
+
+Example request body for `POST /api/shipping/create`:
+
+```json
+{
+  "orderId": "your-order-id",
+  "weight": 0.8,
+  "length": 12,
+  "breadth": 10,
+  "height": 6
+}
+```
+
+The service loads the order, customer, items, and shipping address from the database, creates the Shiprocket order, assigns an AWB, stores the shipment in PostgreSQL, and returns clean JSON for your frontend.
+
 ---
 ## 💡 Features
 - **Strict Data Validation**: Leveraging Prisma's type safety.

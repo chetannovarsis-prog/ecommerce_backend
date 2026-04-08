@@ -15,7 +15,7 @@ export const uploadImage = async (req, res) => {
     const fileName = `${sanitizedName}-${Date.now()}.${file.originalname.split('.').pop()}`;
 
     const { data, error } = await supabase.storage
-      .from("ecommerce")
+      .from("uploads")
       .upload(fileName, file.buffer, {
         contentType: file.mimetype,
         upsert: false
@@ -31,7 +31,7 @@ export const uploadImage = async (req, res) => {
 
     const { data: { publicUrl } } = supabase
       .storage
-      .from("ecommerce")
+      .from("uploads")
       .getPublicUrl(fileName);
 
     if (!publicUrl) {
@@ -67,7 +67,7 @@ export const deleteImage = async (req, res) => {
     }
 
     const { error } = await supabase.storage
-      .from("ecommerce")
+      .from("uploads")
       .remove([fileName]);
 
     if (error) {

@@ -3,8 +3,45 @@ import nodemailer from 'nodemailer';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
+import bcrypt from 'bcryptjs';
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const JWT_SECRET = process.env.JWT_SECRET || 'default-secret';
+
+const sanitizeAddresses = (addresses) => {
+  if (!Array.isArray(addresses)) return [];
+
+  return addresses
+    .map((address, index) => ({
+      id: address?.id || `addr_${Date.now()}_${index}`,
+      label: address?.label?.trim() || 'Saved Address',
+      firstName: address?.firstName?.trim() || '',
+      lastName: address?.lastName?.trim() || '',
+      email: address?.email?.trim()?.toLowerCase() || '',
+      address: address?.address?.trim() || '',
+      apartment: address?.apartment?.trim() || '',
+      city: address?.city?.trim() || '',
+      state: address?.state?.trim() || '',
+      pinCode: String(address?.pinCode || '').trim(),
+      phone: String(address?.phone || '').trim(),
+    }))
+    .filter(address =>
+      address.firstName &&
+      address.lastName &&
+      address.address &&
+      address.city &&
+      address.state &&
+      address.pinCode &&
+      address.phone
+    );
+};
+
+const serializeCustomer = (customer) => ({
+  id: customer.id,
+  name: customer.name,
+  email: customer.email,
+  addresses: sanitizeAddresses(customer.addresses)
+});
 // Setup nodemailer transporter
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -73,7 +110,7 @@ export const login = async (req, res) => {
       // This keeps the app usable in environments where email is not configured.
       const token = jwt.sign(
         { id: admin.id, email: admin.email, role: 'admin' },
-        process.env.JWT_SECRET || 'default-secret',
+        JWT_SECRET,
         { expiresIn: '1d' }
       );
 
@@ -88,7 +125,7 @@ export const login = async (req, res) => {
     // Generate JWT
     const token = jwt.sign(
       { id: admin.id, email: admin.email, role: 'admin' },
-      process.env.JWT_SECRET || 'default-secret-key-123',
+      JWT_SECRET,
       { expiresIn: '1d' }
     );
 
@@ -123,7 +160,7 @@ export const verifyOtp = async (req, res) => {
     // Generate JWT
     const token = jwt.sign(
       { id: admin.id, email: admin.email, role: 'admin' },
-      process.env.JWT_SECRET || 'default-secret-key-123',
+      JWT_SECRET,
       { expiresIn: '1d' }
     );
 
@@ -140,7 +177,12 @@ export const verifyOtp = async (req, res) => {
 
 export const toggle2FA = async (req, res) => {
   const { email, enabled } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
   try {
+    const admin = await prisma.admin.findUnique({ where: { email } });
+    if (!admin) {
+      return res.status(404).json({ error: 'Admin user not found' });
+    }
     await prisma.admin.update({
       where: { email },
       data: { is2FAEnabled: enabled }
@@ -153,36 +195,74 @@ export const toggle2FA = async (req, res) => {
 // --- Customer Authentication ---
 
 export const customerSignup = async (req, res) => {
-  const { name, email, password } = req.body;
+  const name = req.body.name?.trim();
+  const email = req.body.email?.trim().toLowerCase();
+  const password = req.body.password?.trim();
   try {
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Name, email, and password are required' });
+    }
+
     const existing = await prisma.customer.findUnique({ where: { email } });
     if (existing) return res.status(400).json({ message: 'Email already registered' });
 
+    const hashedPassword = await bcrypt.hash(password, 12);
+
     const customer = await prisma.customer.create({
-      data: { name, email, password, provider: 'local' }
+      data: { name, email, password: hashedPassword, provider: 'local' }
     });
 
-    res.status(201).json({ success: true, customer: { id: customer.id, name: customer.name, email: customer.email } });
+    res.status(201).json({ success: true, customer: serializeCustomer(customer) });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
 export const customerLogin = async (req, res) => {
-  const { email, password } = req.body;
+  const email = req.body.email?.trim().toLowerCase();
+  const password = req.body.password?.trim();
   try {
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
     const customer = await prisma.customer.findUnique({ where: { email } });
-    if (!customer || customer.password !== password) {
+    if (!customer || !customer.password) {
        return res.status(401).json({ message: 'Invalid email or password' });
     }
+
+    let isPasswordValid = false;
+    const looksHashed = customer.password.startsWith('$2');
+
+    if (looksHashed) {
+      isPasswordValid = await bcrypt.compare(password, customer.password);
+    } else {
+      isPasswordValid = customer.password === password;
+      if (isPasswordValid) {
+        const upgradedPassword = await bcrypt.hash(password, 12);
+        await prisma.customer.update({
+          where: { id: customer.id },
+          data: { password: upgradedPassword }
+        });
+      }
+    }
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
     // Generate JWT
     const token = jwt.sign(
       { id: customer.id, email: customer.email, role: 'customer' },
-      process.env.JWT_SECRET,
+      JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    res.json({ success: true, customer: { id: customer.id, name: customer.name, email: customer.email }, token });
+    const refreshedCustomer = await prisma.customer.findUnique({
+      where: { id: customer.id }
+    });
+
+    res.json({ success: true, customer: serializeCustomer(refreshedCustomer || customer), token });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -253,19 +333,54 @@ export const googleLogin = async (req, res) => {
     // Generate JWT
     const token = jwt.sign(
       { id: customer.id, email: customer.email, role: 'customer' },
-      process.env.JWT_SECRET || 'default-secret',
+      JWT_SECRET,
       { expiresIn: '7d' }
     );
 
     return res.json({
       success: true,
-      customer: { id: customer.id, name: customer.name, email: customer.email },
+      customer: serializeCustomer(customer),
       token
     });
   } catch (error) {
     console.error('Google Login Error:', error);
     const message = error?.message || 'Google login failed';
     return res.status(500).json({ error: `Google login failed: ${message}` });
+  }
+};
+
+export const getCustomerProfile = async (req, res) => {
+  try {
+    const customer = await prisma.customer.findUnique({
+      where: { id: req.params.customerId }
+    });
+
+    if (!customer) {
+      return res.status(404).json({ message: 'Customer not found' });
+    }
+
+    return res.json({ success: true, customer: serializeCustomer(customer) });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+export const updateCustomerAddresses = async (req, res) => {
+  try {
+    const sanitizedAddresses = sanitizeAddresses(req.body.addresses);
+
+    const customer = await prisma.customer.update({
+      where: { id: req.params.customerId },
+      data: { addresses: sanitizedAddresses }
+    });
+
+    return res.json({
+      success: true,
+      customer: serializeCustomer(customer),
+      message: 'Addresses updated successfully'
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
   }
 };
 export const getAllCustomers = async (req, res) => {

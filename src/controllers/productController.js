@@ -4,7 +4,7 @@ export const getAllProducts = async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const limit = Math.min(100, Math.max(5, parseInt(req.query.limit, 10) || 20));
   const skip = (page - 1) * limit;
-  const { collectionId, categoryId } = req.query;
+  const { collectionId, categoryId, search } = req.query;
 
   try {
     const where = {};
@@ -13,6 +13,15 @@ export const getAllProducts = async (req, res) => {
     }
     if (categoryId) {
       where.categories = { some: { id: categoryId } };
+    }
+    if (search?.trim()) {
+      const query = search.trim();
+      where.OR = [
+        { name: { contains: query, mode: 'insensitive' } },
+        { subtitle: { contains: query, mode: 'insensitive' } },
+        { description: { contains: query, mode: 'insensitive' } },
+        { handle: { contains: query.toLowerCase(), mode: 'insensitive' } }
+      ];
     }
 
     const [products, total] = await Promise.all([
@@ -170,8 +179,22 @@ export const updateProduct = async (req, res) => {
           set: (collectionIds || [collectionId]).filter(id => id && id !== 'none' && id !== '').map(id => ({ id }))
         } : undefined,
         variants: variants ? {
-          deleteMany: {},
-          create: variants.map(v => ({
+          deleteMany: {
+            id: {
+              notIn: variants.filter(v => v.id).map(v => v.id)
+            },
+            productId: req.params.id
+          },
+          update: variants.filter(v => v.id).map(v => ({
+            where: { id: v.id },
+            data: {
+              title: v.title,
+              price: (v.price === null || v.price === undefined || v.price === '') ? null : parseFloat(v.price),
+              stock: parseInt(v.stock) || 0,
+              images: v.images || []
+            }
+          })),
+          create: variants.filter(v => !v.id).map(v => ({
             title: v.title,
             price: (v.price === null || v.price === undefined || v.price === '') ? null : parseFloat(v.price),
             stock: parseInt(v.stock) || 0,
@@ -212,11 +235,23 @@ export const patchProduct = async (req, res) => {
       const variantsData = data.variants;
       delete data.variants; 
 
-      // Delete existing variants and recreate
-      await prisma.productVariant.deleteMany({ where: { productId: id } });
-      
       data.variants = {
-        create: variantsData.map(v => ({
+        deleteMany: {
+          id: {
+            notIn: variantsData.filter(v => v.id).map(v => v.id)
+          },
+          productId: id
+        },
+        update: variantsData.filter(v => v.id).map(v => ({
+          where: { id: v.id },
+          data: {
+            title: v.title,
+            price: (v.price === null || v.price === undefined || v.price === '') ? null : parseFloat(v.price),
+            stock: parseInt(v.stock) || 0,
+            images: v.images || []
+          }
+        })),
+        create: variantsData.filter(v => !v.id).map(v => ({
           title: v.title,
           price: (v.price === null || v.price === undefined || v.price === '') ? null : parseFloat(v.price),
           stock: parseInt(v.stock) || 0,
